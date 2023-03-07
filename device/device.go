@@ -47,6 +47,7 @@ type Device struct {
 		brokenRoaming bool
 	}
 
+	// 这里应该是本地的公私钥
 	staticIdentity struct {
 		sync.RWMutex
 		privateKey NoisePrivateKey
@@ -55,7 +56,8 @@ type Device struct {
 
 	peers struct {
 		sync.RWMutex // protects keyMap
-		keyMap       map[NoisePublicKey]*Peer
+		// 对端公钥 => Peer
+		keyMap map[NoisePublicKey]*Peer
 	}
 
 	rate struct {

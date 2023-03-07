@@ -26,7 +26,7 @@ type Timer struct {
 	modifyingLock sync.RWMutex
 	// 运行锁
 	runningLock sync.Mutex
-	// 是否在等待
+	// 是否在运作
 	isPending bool
 }
 
@@ -40,13 +40,13 @@ func (peer *Peer) NewTimer(expirationFunction func(*Peer)) *Timer {
 		defer timer.runningLock.Unlock()
 		// 设置锁
 		timer.modifyingLock.Lock()
-		// 如果timer不在循环？不在等待？
+		// 如果timer不再运作
 		if !timer.isPending {
 			// 解锁并return
 			timer.modifyingLock.Unlock()
 			return
 		}
-		// timer等待变量设置为false
+		// timer运作变量设置为false
 		timer.isPending = false
 		timer.modifyingLock.Unlock()
 		// 超时方法，传入peer
@@ -58,6 +58,7 @@ func (peer *Peer) NewTimer(expirationFunction func(*Peer)) *Timer {
 	return timer
 }
 
+// Mod 将timer设置为等待，并reset新的时间
 func (timer *Timer) Mod(d time.Duration) {
 	timer.modifyingLock.Lock()
 	timer.isPending = true
@@ -65,6 +66,7 @@ func (timer *Timer) Mod(d time.Duration) {
 	timer.modifyingLock.Unlock()
 }
 
+// Del 将定时器停止，并设置pending为false
 func (timer *Timer) Del() {
 	timer.modifyingLock.Lock()
 	timer.isPending = false
@@ -72,6 +74,7 @@ func (timer *Timer) Del() {
 	timer.modifyingLock.Unlock()
 }
 
+// DelSync 异步删除，防止并发？
 func (timer *Timer) DelSync() {
 	timer.Del()
 	timer.runningLock.Lock()
@@ -79,6 +82,7 @@ func (timer *Timer) DelSync() {
 	timer.runningLock.Unlock()
 }
 
+// IsPending 是否在运作
 func (timer *Timer) IsPending() bool {
 	timer.modifyingLock.RLock()
 	defer timer.modifyingLock.RUnlock()
@@ -99,7 +103,7 @@ func expiredRetransmitHandshake(peer *Peer) {
 		peer.device.log.Verbosef("%s - Handshake did not complete after %d attempts, giving up", peer, MaxTimerHandshakes+2)
 		// 判断peer是否活跃
 		if peer.timersActive() {
-			// TODO：不再发送Keepalive包时间？
+			// 不再发送Keepalive包
 			peer.timers.sendKeepalive.Del()
 		}
 
@@ -113,20 +117,26 @@ func expiredRetransmitHandshake(peer *Peer) {
 		 * of a partial exchange.
 		 * 我们设置了一个定时器用来销毁任何可能残留的部分交换。
 		 */
+		// 如果zeroKeyMaterial不运作
 		if peer.timersActive() && !peer.timers.zeroKeyMaterial.IsPending() {
+			// 则Reset 9分钟
 			peer.timers.zeroKeyMaterial.Mod(RejectAfterTime * 3)
 		}
 	} else {
+		// 如果尝试握手次数没到18次
+		// 握手尝试次数加一
 		peer.timers.handshakeAttempts.Add(1)
 		peer.device.log.Verbosef("%s - Handshake did not complete after %d seconds, retrying (try %d)", peer, int(RekeyTimeout.Seconds()), peer.timers.handshakeAttempts.Load()+1)
 
 		/* We clear the endpoint address src address, in case this is the cause of trouble. */
 		peer.Lock()
+		// 如果数据通道不为空
 		if peer.endpoint != nil {
+			// TODO：还没有看到endpoint，后续再看
 			peer.endpoint.ClearSrc()
 		}
 		peer.Unlock()
-
+		// 初始化握手流程，重试规则：true
 		peer.SendHandshakeInitiation(true)
 	}
 }

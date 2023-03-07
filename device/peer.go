@@ -30,7 +30,8 @@ type Peer struct {
 	// 主要是保护端点，但通常在修改peer时使用
 	sync.RWMutex // Mostly protects endpoint, but is generally taken whenever we modify peer
 
-	keypairs  Keypairs
+	keypairs Keypairs
+	// 握手类
 	handshake Handshake
 	// 上层设备类
 	device *Device
@@ -55,7 +56,7 @@ type Peer struct {
 		zeroKeyMaterial *Timer
 		// 持续Keepalive包时间
 		persistentKeepalive *Timer
-		// 握手尝试次数？
+		// 握手尝试次数
 		handshakeAttempts atomic.Uint32
 		// 需要另一个Keepalive？TODO：这边还不知道是啥意思
 		needAnotherKeepalive atomic.Bool

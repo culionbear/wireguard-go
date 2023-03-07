@@ -46,10 +46,12 @@ func (hs handshakeState) String() string {
 }
 
 const (
+	// NoiseConstruction 混淆字段
 	NoiseConstruction = "Noise_IKpsk2_25519_ChaChaPoly_BLAKE2s"
-	WGIdentifier      = "WireGuard v1 zx2c4 Jason@zx2c4.com"
-	WGLabelMAC1       = "mac1----"
-	WGLabelCookie     = "cookie--"
+	// WGIdentifier 作者名片？
+	WGIdentifier  = "WireGuard v1 zx2c4 Jason@zx2c4.com"
+	WGLabelMAC1   = "mac1----"
+	WGLabelCookie = "cookie--"
 )
 
 const (
@@ -120,8 +122,10 @@ type Handshake struct {
 	// 握手状态
 	state handshakeState
 	// 读写锁
-	mutex    sync.RWMutex
-	hash     [blake2s.Size]byte // hash value
+	mutex sync.RWMutex
+	// hash码
+	hash [blake2s.Size]byte // hash value
+	// chain key？ TODO：这是啥玩意？
 	chainKey [blake2s.Size]byte // chain key
 	// 预共享密钥
 	presharedKey NoisePresharedKey // psk
@@ -154,6 +158,7 @@ func mixKey(dst, c *[blake2s.Size]byte, data []byte) {
 	KDF1(dst, c[:], data)
 }
 
+// mixHash TODO：这是混淆算法嘛？
 func mixHash(dst, h *[blake2s.Size]byte, data []byte) {
 	hash, _ := blake2s.New256(nil)
 	hash.Write(h[:])
@@ -186,23 +191,29 @@ func init() {
 	mixHash(&InitialHash, &InitialChainKey, []byte(WGIdentifier))
 }
 
+// CreateMessageInitiation 通过Peer初始化创建信息
 func (device *Device) CreateMessageInitiation(peer *Peer) (*MessageInitiation, error) {
+	// 公私钥读取上锁
 	device.staticIdentity.RLock()
 	defer device.staticIdentity.RUnlock()
 
+	// 拿到该peer的握手实体类
 	handshake := &peer.handshake
 	handshake.mutex.Lock()
 	defer handshake.mutex.Unlock()
 
 	// create ephemeral key
 	var err error
+	// 获取32字节的混淆算法后的字节段
 	handshake.hash = InitialHash
+	// 初始化Chain Key
 	handshake.chainKey = InitialChainKey
+	// 生成新的私钥
 	handshake.localEphemeral, err = newPrivateKey()
 	if err != nil {
 		return nil, err
 	}
-
+	// TODO：生成对端公钥？
 	handshake.mixHash(handshake.remoteStatic[:])
 
 	msg := MessageInitiation{

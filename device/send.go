@@ -88,34 +88,41 @@ func (peer *Peer) SendKeepalive() {
 	peer.SendStagedPackets()
 }
 
+// SendHandshakeInitiation 初始化握手流程，入参为是否为第一次
 func (peer *Peer) SendHandshakeInitiation(isRetry bool) error {
+	// 如果是第一次
 	if !isRetry {
+		// 则尝试握手次数清零
 		peer.timers.handshakeAttempts.Store(0)
 	}
 
 	peer.handshake.mutex.RLock()
+	// 如果最后一次握手时间小于五秒
 	if time.Since(peer.handshake.lastSentHandshake) < RekeyTimeout {
+		// 直接返回
 		peer.handshake.mutex.RUnlock()
 		return nil
 	}
 	peer.handshake.mutex.RUnlock()
 
 	peer.handshake.mutex.Lock()
+	// 这里做了异步处理，同上
 	if time.Since(peer.handshake.lastSentHandshake) < RekeyTimeout {
 		peer.handshake.mutex.Unlock()
 		return nil
 	}
+	// 重置最后一次握手时间
 	peer.handshake.lastSentHandshake = time.Now()
 	peer.handshake.mutex.Unlock()
-
+	// 打印日志
 	peer.device.log.Verbosef("%v - Sending handshake initiation", peer)
-
+	// 通过peer新建一个message
 	msg, err := peer.device.CreateMessageInitiation(peer)
 	if err != nil {
 		peer.device.log.Errorf("%v - Failed to create initiation message: %v", peer, err)
 		return err
 	}
-
+	// 设置一个148字节的buffer
 	var buff [MessageInitiationSize]byte
 	writer := bytes.NewBuffer(buff[:0])
 	binary.Write(writer, binary.LittleEndian, msg)
