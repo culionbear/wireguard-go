@@ -281,6 +281,7 @@ func (table *AllowedIPs) Insert(prefix netip.Prefix, peer *Peer) {
 }
 
 func (table *AllowedIPs) Lookup(ip []byte) *Peer {
+	// 这里通过cidr trie树来获取peer
 	table.mutex.RLock()
 	defer table.mutex.RUnlock()
 	switch len(ip) {

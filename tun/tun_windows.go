@@ -8,6 +8,7 @@ package tun
 import (
 	"errors"
 	"fmt"
+	"golang.zx2c4.com/wintun"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -15,8 +16,6 @@ import (
 	_ "unsafe"
 
 	"golang.org/x/sys/windows"
-
-	"golang.zx2c4.com/wintun"
 )
 
 const (

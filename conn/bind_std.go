@@ -29,6 +29,8 @@ func NewStdNetBind() Bind { return &StdNetBind{} }
 
 type StdNetEndpoint netip.AddrPort
 
+// 为了防止实现类缺少相关方法导致并不能实现该接口
+// 该方案防止在无ide时无法查看错误，导致在运行时编译报错
 var (
 	_ Bind     = (*StdNetBind)(nil)
 	_ Endpoint = StdNetEndpoint{}

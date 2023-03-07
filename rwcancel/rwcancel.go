@@ -24,12 +24,14 @@ type RWCancel struct {
 }
 
 func NewRWCancel(fd int) (*RWCancel, error) {
+	// 这里应该是将某文件句柄变为非阻塞
 	err := unix.SetNonblock(fd, true)
 	if err != nil {
 		return nil, err
 	}
+	// 返回对应类
 	rwcancel := RWCancel{fd: fd}
-
+	// 获取读写句柄
 	rwcancel.closingReader, rwcancel.closingWriter, err = os.Pipe()
 	if err != nil {
 		return nil, err

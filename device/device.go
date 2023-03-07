@@ -280,32 +280,45 @@ func (device *Device) SetPrivateKey(sk NoisePrivateKey) error {
 }
 
 func NewDevice(tunDevice tun.Device, bind conn.Bind, logger *Logger) *Device {
+	// 新建device指针
 	device := new(Device)
+	// 设置设备状态为关闭
 	device.state.state.Store(uint32(deviceStateDown))
+	// 设置closed管道
 	device.closed = make(chan struct{})
+	// 装载日志
 	device.log = logger
+	// 装载connect绑定器【空白】
 	device.net.bind = bind
+	// 装载携带网卡的设备类
 	device.tun.device = tunDevice
+	// 获取分片信息，这里是NativeTun类
 	mtu, err := device.tun.device.MTU()
 	if err != nil {
+		// 如果报错，则mtu设置为默认，即1420
 		device.log.Errorf("Trouble determining MTU, assuming default: %v", err)
 		mtu = DefaultMTU
 	}
+	// 设置tun的mtu（这块绕了一下，感觉有点乱）
 	device.tun.mtu.Store(int32(mtu))
+	// 新建密钥（客户端公钥 = Peer）仓库
 	device.peers.keyMap = make(map[NoisePublicKey]*Peer)
+	// TODO：不是很懂，先不管
 	device.rate.limiter.Init()
 	device.indexTable.Init()
+	// 新建三个存储池
 	device.PopulatePools()
 
 	// create queues
-
+	// 新建三个队列
 	device.queue.handshake = newHandshakeQueue()
 	device.queue.encryption = newOutboundQueue()
 	device.queue.decryption = newInboundQueue()
 
 	// start workers
-
+	// 获取cpu数量
 	cpus := runtime.NumCPU()
+	// TODO：这块为什么会要wait一下？
 	device.state.stopping.Wait()
 	device.queue.encryption.wg.Add(cpus) // One for each RoutineHandshake
 	for i := 0; i < cpus; i++ {
@@ -316,6 +329,7 @@ func NewDevice(tunDevice tun.Device, bind conn.Bind, logger *Logger) *Device {
 
 	device.state.stopping.Add(1)      // RoutineReadFromTUN
 	device.queue.encryption.wg.Add(1) // RoutineReadFromTUN
+	// 从tun中读取数据
 	go device.RoutineReadFromTUN()
 	go device.RoutineTUNEventReader()
 

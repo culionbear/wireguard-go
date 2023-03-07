@@ -212,53 +212,72 @@ func (device *Device) RoutineReadFromTUN() {
 
 	device.log.Verbosef("Routine: TUN reader - started")
 
+	//新建输出队列元素
 	var elem *QueueOutboundElement
 
 	for {
 		if elem != nil {
+			//将两个数据回归池中
 			device.PutMessageBuffer(elem.buffer)
 			device.PutOutboundElement(elem)
 		}
+		// 新建一个输出队列元素
 		elem = device.NewOutboundElement()
 
 		// read packet
-
+		// 读取数据包
 		offset := MessageTransportHeaderSize
+		// 从网卡中读取数据，其中offset是偏移量，读取数据为buffer[offset - 4:]，前四个应该是头部组织
 		size, err := device.tun.device.Read(elem.buffer[:], offset)
+		// 如果出错了
 		if err != nil {
+			// 如果网卡没关
 			if !device.isClosed() {
+				// 如果不是已经关闭的错误
 				if !errors.Is(err, os.ErrClosed) {
+					// 打印错误日志
 					device.log.Errorf("Failed to read packet from TUN device: %v", err)
 				}
+				// 那就直接关掉
 				go device.Close()
 			}
+			// 归还元素
 			device.PutMessageBuffer(elem.buffer)
 			device.PutOutboundElement(elem)
 			return
 		}
-
+		// 如果size为0或者大于最大长度，则continue
 		if size == 0 || size > MaxContentSize {
 			continue
 		}
 
+		//Packet是offset => offset + size
+		//翻译过来是16 => N
 		elem.packet = elem.buffer[offset : offset+size]
 
 		// lookup peer
-
+		// 查询peer
 		var peer *Peer
+		// 包首为IP版本
 		switch elem.packet[0] >> 4 {
+		// 0x04
 		case ipv4.Version:
+			// 如果package长度小于ipv4头长度，则跳过后续逻辑，继续等待发包
 			if len(elem.packet) < ipv4.HeaderLen {
 				continue
 			}
+			// packet中16->20为目标ip字段
 			dst := elem.packet[IPv4offsetDst : IPv4offsetDst+net.IPv4len]
+			// 通过ip查找peer
 			peer = device.allowedips.Lookup(dst)
-
+		// 0x06
 		case ipv6.Version:
 			if len(elem.packet) < ipv6.HeaderLen {
 				continue
 			}
+			// packet中24->40为目标ip字段
 			dst := elem.packet[IPv6offsetDst : IPv6offsetDst+net.IPv6len]
+			// 通过ip查找peer
 			peer = device.allowedips.Lookup(dst)
 
 		default:
@@ -279,10 +298,12 @@ func (device *Device) RoutineReadFromTUN() {
 func (peer *Peer) StagePacket(elem *QueueOutboundElement) {
 	for {
 		select {
+		// 如果peer中的channel阻塞了，elem不能放进去，则执行后续操作
 		case peer.queue.staged <- elem:
 			return
 		default:
 		}
+		// 当上述被阻塞，读取一个elem给扔回到池子里
 		select {
 		case tooOld := <-peer.queue.staged:
 			peer.device.PutMessageBuffer(tooOld.buffer)
@@ -294,10 +315,11 @@ func (peer *Peer) StagePacket(elem *QueueOutboundElement) {
 
 func (peer *Peer) SendStagedPackets() {
 top:
+	// 如果通道没有elem或者device没开启，则返回
 	if len(peer.queue.staged) == 0 || !peer.device.isUp() {
 		return
 	}
-
+	// TODO：后续过会儿再看
 	keypair := peer.keypairs.Current()
 	if keypair == nil || keypair.sendNonce.Load() >= RejectAfterMessages || time.Since(keypair.created) >= RejectAfterTime {
 		peer.SendHandshakeInitiation(false)

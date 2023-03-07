@@ -67,6 +67,7 @@ func main() {
 
 	var foreground bool
 	var interfaceName string
+	//只能有两个，三个后缀
 	if len(os.Args) < 2 || len(os.Args) > 3 {
 		printUsage()
 		return
@@ -80,6 +81,7 @@ func main() {
 			printUsage()
 			return
 		}
+		//获取网卡名
 		interfaceName = os.Args[2]
 
 	default:
@@ -97,6 +99,7 @@ func main() {
 
 	// get log level (default: info)
 
+	//设置日志级别
 	logLevel := func() int {
 		switch os.Getenv("LOG_LEVEL") {
 		case "verbose", "debug":
@@ -110,15 +113,17 @@ func main() {
 	}()
 
 	// open TUN device (or use supplied fd)
-
+	// 获取tun网卡的引用
 	tun, err := func() (tun.Device, error) {
+		// 获取FD
 		tunFdStr := os.Getenv(ENV_WG_TUN_FD)
 		if tunFdStr == "" {
+			// 创建新的网卡
 			return tun.CreateTUN(interfaceName, device.DefaultMTU)
 		}
-
+		// 如果环境变量存在fd，则使用原先的网卡
 		// construct tun device from supplied fd
-
+		// 获取句柄
 		fd, err := strconv.ParseUint(tunFdStr, 10, 32)
 		if err != nil {
 			return nil, err
@@ -128,23 +133,28 @@ func main() {
 		if err != nil {
 			return nil, err
 		}
-
+		// 通过fd新建文件
 		file := os.NewFile(uintptr(fd), "")
+		// 通过file来创建tun网卡
 		return tun.CreateTUNFromFile(file, device.DefaultMTU)
 	}()
 
 	if err == nil {
+		// 获取真实网卡名？这里还会跟之前的不一样？应该是通过fd创建网卡后
+		// 若在程序关闭后再启动，怕在这段时间网卡名称改变，所以环境变量不可信
 		realInterfaceName, err2 := tun.Name()
 		if err2 == nil {
 			interfaceName = realInterfaceName
 		}
 	}
 
+	// 创建logger handler
+	// 此处不用看，很简单
 	logger := device.NewLogger(
 		logLevel,
 		fmt.Sprintf("(%s) ", interfaceName),
 	)
-
+	//打印logger日志
 	logger.Verbosef("Starting wireguard-go version %s", Version)
 
 	if err != nil {
@@ -155,18 +165,20 @@ func main() {
 	// open UAPI file (or use supplied fd)
 
 	fileUAPI, err := func() (*os.File, error) {
+		//获取uapi的fd句柄
 		uapiFdStr := os.Getenv(ENV_WG_UAPI_FD)
 		if uapiFdStr == "" {
+			// 打开新的unix socket链接
 			return ipc.UAPIOpen(interfaceName)
 		}
 
 		// use supplied fd
-
+		// 解析fd
 		fd, err := strconv.ParseUint(uapiFdStr, 10, 32)
 		if err != nil {
 			return nil, err
 		}
-
+		// 获取unix socket file
 		return os.NewFile(uintptr(fd), ""), nil
 	}()
 	if err != nil {
@@ -177,11 +189,14 @@ func main() {
 	// daemonize the process
 
 	if !foreground {
+		// 获取env列表
 		env := os.Environ()
 		env = append(env, fmt.Sprintf("%s=3", ENV_WG_TUN_FD))
 		env = append(env, fmt.Sprintf("%s=4", ENV_WG_UAPI_FD))
 		env = append(env, fmt.Sprintf("%s=1", ENV_WG_PROCESS_FOREGROUND))
+		// 获取文件列表
 		files := [3]*os.File{}
+		// 如果环境变量内等级不为空并且等级不是silent
 		if os.Getenv("LOG_LEVEL") != "" && logLevel != device.LogLevelSilent {
 			files[0], _ = os.Open(os.DevNull)
 			files[1] = os.Stdout
@@ -191,6 +206,7 @@ func main() {
 			files[1], _ = os.Open(os.DevNull)
 			files[2], _ = os.Open(os.DevNull)
 		}
+		// 新建启动进程的配置
 		attr := &os.ProcAttr{
 			Files: []*os.File{
 				files[0], // stdin
@@ -202,13 +218,13 @@ func main() {
 			Dir: ".",
 			Env: env,
 		}
-
+		// 获取该进程所在二进制的路径
 		path, err := os.Executable()
 		if err != nil {
 			logger.Errorf("Failed to determine executable: %v", err)
 			os.Exit(ExitSetupFailed)
 		}
-
+		// 启动进程
 		process, err := os.StartProcess(
 			path,
 			os.Args,
@@ -218,10 +234,11 @@ func main() {
 			logger.Errorf("Failed to daemonize: %v", err)
 			os.Exit(ExitSetupFailed)
 		}
+		// 释放资源？这几波操作不知道是为了啥
 		process.Release()
 		return
 	}
-
+	// 新建device类
 	device := device.NewDevice(tun, conn.NewDefaultBind(), logger)
 
 	logger.Verbosef("Device started")

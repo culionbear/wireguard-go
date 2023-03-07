@@ -18,7 +18,17 @@ import (
 // When no further writers will be added,
 // call wg.Done to remove the initial reference.
 // When the refcount hits 0, the queue's channel is closed.
+
+// 上述翻译
+// outboundQueue是等待加密的QueueOutboundElements通道。
+// outboundQueue使用它的wg字段进行引用计数。
+// 用newOutboundQueue创建的outboundQueue有一个引用。
+// 每个额外的写入器必须调用wg.Add(1)。
+// 每个完成的写入都必须调用wg.Done()。
+// 当不再添加writer时，调用wg。删除初始引用。
+// 当refcount达到0时，队列的通道被关闭。
 type outboundQueue struct {
+	// 新建元素通道
 	c  chan *QueueOutboundElement
 	wg sync.WaitGroup
 }
@@ -29,6 +39,7 @@ func newOutboundQueue() *outboundQueue {
 	}
 	q.wg.Add(1)
 	go func() {
+		// 等待wg.Done，后close通道
 		q.wg.Wait()
 		close(q.c)
 	}()
@@ -36,6 +47,9 @@ func newOutboundQueue() *outboundQueue {
 }
 
 // A inboundQueue is similar to an outboundQueue; see those docs.
+
+// 上述翻译
+// inboundQueue类似于outboundQueue；看看那些文件。
 type inboundQueue struct {
 	c  chan *QueueInboundElement
 	wg sync.WaitGroup
@@ -54,6 +68,9 @@ func newInboundQueue() *inboundQueue {
 }
 
 // A handshakeQueue is similar to an outboundQueue; see those docs.
+
+// 上述翻译
+// handshakeQueue类似于outboundQueue;看看那些文件。
 type handshakeQueue struct {
 	c  chan QueueHandshakeElement
 	wg sync.WaitGroup
@@ -79,6 +96,12 @@ type autodrainingInboundQueue struct {
 // It is useful in cases in which is it hard to manage the lifetime of the channel.
 // The returned channel must not be closed. Senders should signal shutdown using
 // some other means, such as sending a sentinel nil values.
+
+// 上述翻译
+// newAutodrainingInboundQueue返回一个通道，当它被回收时将被清空。
+// 在很难管理通道生命周期的情况下是有用的。
+// 返回的通道不能关闭发送者使用时应发出关机信号
+// 一些其他的方法，例如发送一个哨兵nil值。
 func newAutodrainingInboundQueue(device *Device) *autodrainingInboundQueue {
 	q := &autodrainingInboundQueue{
 		c: make(chan *QueueInboundElement, QueueInboundSize),

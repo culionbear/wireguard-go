@@ -98,20 +98,24 @@ func (tun *NativeTun) routineRouteListener(tunIfindex int) {
 	}
 }
 
+// CreateTUN 返回新建的网卡
 func CreateTUN(name string, mtu int) (Device, error) {
 	ifIndex := -1
+	//检查名字是否是utun
 	if name != "utun" {
+		//如果不是，则名字也必须是utun和数字的组合，如：utun1
 		_, err := fmt.Sscanf(name, "utun%d", &ifIndex)
 		if err != nil || ifIndex < 0 {
 			return nil, fmt.Errorf("Interface name must be utun[0-9]*")
 		}
 	}
-
+	//TODO：后续再学，CloseOnExec相关，获取某句柄
 	fd, err := socketCloexec(unix.AF_SYSTEM, unix.SOCK_DGRAM, 2)
 	if err != nil {
 		return nil, err
 	}
 
+	//新建CTL信息
 	ctlInfo := &unix.CtlInfo{}
 	copy(ctlInfo.Name[:], []byte(utunControlName))
 	err = unix.IoctlCtlInfo(fd, ctlInfo)
@@ -119,7 +123,8 @@ func CreateTUN(name string, mtu int) (Device, error) {
 		unix.Close(fd)
 		return nil, fmt.Errorf("IoctlGetCtlInfo: %w", err)
 	}
-
+	//SockaddrCtl implements the Sockaddr interface for AF_SYSTEM type sockets.
+	//TODO：针对socketCloexec的sc包，暂不知何用
 	sc := &unix.SockaddrCtl{
 		ID:   ctlInfo.Id,
 		Unit: uint32(ifIndex) + 1,
@@ -136,11 +141,13 @@ func CreateTUN(name string, mtu int) (Device, error) {
 		unix.Close(fd)
 		return nil, err
 	}
+	//通过文件新建网卡，这里应该跟mac/linux有关，在非windows系统里，用文件来对应网卡
 	tun, err := CreateTUNFromFile(os.NewFile(uintptr(fd), ""), mtu)
 
 	if err == nil && name == "utun" {
 		fname := os.Getenv("WG_TUN_NAME_FILE")
 		if fname != "" {
+			//TODO：往某个文件里写数据，暂不知为何
 			os.WriteFile(fname, []byte(tun.(*NativeTun).name+"\n"), 0o400)
 		}
 	}
