@@ -14,19 +14,22 @@ import (
 const (
 	// TimestampSize 时间戳长度
 	TimestampSize = 12
-	base          = uint64(0x400000000000000a)
-	whitenerMask  = uint32(0x1000000 - 1)
+	// base是TAI单位在1970年的数量级，经过与世界时偏移量相差，所以会加个a(10)
+	base         = uint64(0x400000000000000a)
+	whitenerMask = uint32(0x1000000 - 1)
 )
 
-// Timestamp 时间戳
+// Timestamp 时间戳 [12]byte
 type Timestamp [TimestampSize]byte
 
 // stamp 获取时间戳
 func stamp(t time.Time) Timestamp {
 	var tai64n Timestamp
-	// TODO：TAI64N算法，后续补充
+	// base是TAI单位在1970年的
 	secs := base + uint64(t.Unix())
+	// 这里是先对whitenerMask取反后在'与'time的纳秒，取前八位
 	nano := uint32(t.Nanosecond()) &^ whitenerMask
+	// 放入时间戳内
 	binary.BigEndian.PutUint64(tai64n[:], secs)
 	binary.BigEndian.PutUint32(tai64n[8:], nano)
 	return tai64n

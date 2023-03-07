@@ -125,7 +125,7 @@ type Handshake struct {
 	mutex sync.RWMutex
 	// hash码
 	hash [blake2s.Size]byte // hash value
-	// chain key？ TODO：这是啥玩意？
+	// chain key？ TODO：这是啥玩意？是密钥串？
 	chainKey [blake2s.Size]byte // chain key
 	// 预共享密钥
 	presharedKey NoisePresharedKey // psk
@@ -215,16 +215,17 @@ func (device *Device) CreateMessageInitiation(peer *Peer) (*MessageInitiation, e
 	}
 	// TODO：生成对端公钥？
 	handshake.mixHash(handshake.remoteStatic[:])
-
+	// Type为初始化类型，Ephemeral为临时私钥生成的公钥
 	msg := MessageInitiation{
 		Type:      MessageInitiationType,
 		Ephemeral: handshake.localEphemeral.publicKey(),
 	}
-
+	// TODO：临时密钥加入密钥串和哈希内，这块没看懂
 	handshake.mixKey(msg.Ephemeral[:])
 	handshake.mixHash(msg.Ephemeral[:])
 
 	// encrypt static key
+	// 通过临时私钥和对端公钥获取预共享密钥
 	ss, err := handshake.localEphemeral.sharedSecret(handshake.remoteStatic)
 	if err != nil {
 		return nil, err
