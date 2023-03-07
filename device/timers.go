@@ -18,30 +18,43 @@ func fastrandn(n uint32) uint32
 
 // A Timer manages time-based aspects of the WireGuard protocol.
 // Timer roughly copies the interface of the Linux kernel's struct timer_list.
+// Timer Peer中计时器包
 type Timer struct {
+	// 继承底层Timer包
 	*time.Timer
+	// 修改时所用到的锁
 	modifyingLock sync.RWMutex
-	runningLock   sync.Mutex
-	isPending     bool
+	// 运行锁
+	runningLock sync.Mutex
+	// 是否在等待
+	isPending bool
 }
 
+// NewTimer 通过超时方法新建一个计时器
 func (peer *Peer) NewTimer(expirationFunction func(*Peer)) *Timer {
 	timer := &Timer{}
+	// 每过一个小时，执行以下方法
 	timer.Timer = time.AfterFunc(time.Hour, func() {
+		// 运行锁
 		timer.runningLock.Lock()
 		defer timer.runningLock.Unlock()
-
+		// 设置锁
 		timer.modifyingLock.Lock()
+		// 如果timer不在循环？不在等待？
 		if !timer.isPending {
+			// 解锁并return
 			timer.modifyingLock.Unlock()
 			return
 		}
+		// timer等待变量设置为false
 		timer.isPending = false
 		timer.modifyingLock.Unlock()
-
+		// 超时方法，传入peer
 		expirationFunction(peer)
 	})
+	// 先stop？
 	timer.Stop()
+	// 返回timer
 	return timer
 }
 
@@ -72,25 +85,33 @@ func (timer *Timer) IsPending() bool {
 	return timer.isPending
 }
 
+// timersActive 判断peer是否为活跃的
 func (peer *Peer) timersActive() bool {
+	// peer是否在运行并且上层设备是否存在并且上层设备是否开启
 	return peer.isRunning.Load() && peer.device != nil && peer.device.isUp()
 }
 
+// expiredRetransmitHandshake 超时重传握手机制？
 func expiredRetransmitHandshake(peer *Peer) {
+	// 如果尝试握手次数大于18次
 	if peer.timers.handshakeAttempts.Load() > MaxTimerHandshakes {
+		// 打日志
 		peer.device.log.Verbosef("%s - Handshake did not complete after %d attempts, giving up", peer, MaxTimerHandshakes+2)
-
+		// 判断peer是否活跃
 		if peer.timersActive() {
+			// TODO：不再发送Keepalive包时间？
 			peer.timers.sendKeepalive.Del()
 		}
 
 		/* We drop all packets without a keypair and don't try again,
 		 * if we try unsuccessfully for too long to make a handshake.
+		 * 如果长时间未能成功握手，就丢弃所有没有密钥对的数据包，并且不再尝试。
 		 */
 		peer.FlushStagedPackets()
 
 		/* We set a timer for destroying any residue that might be left
 		 * of a partial exchange.
+		 * 我们设置了一个定时器用来销毁任何可能残留的部分交换。
 		 */
 		if peer.timersActive() && !peer.timers.zeroKeyMaterial.IsPending() {
 			peer.timers.zeroKeyMaterial.Mod(RejectAfterTime * 3)

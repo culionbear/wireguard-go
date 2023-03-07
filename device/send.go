@@ -354,6 +354,7 @@ top:
 	}
 }
 
+// FlushStagedPackets 释放buffer和元素
 func (peer *Peer) FlushStagedPackets() {
 	for {
 		select {

@@ -170,24 +170,31 @@ func (st *CookieChecker) CreateReply(
 	return reply, nil
 }
 
+// Init 通过NoisePublicKey来初始化Cookie相关类
 func (st *CookieGenerator) Init(pk NoisePublicKey) {
 	st.Lock()
 	defer st.Unlock()
 
 	func() {
+		// mac1----[32 bit key] == blake2s => [32 bit]
 		hash, _ := blake2s.New256(nil)
 		hash.Write([]byte(WGLabelMAC1))
 		hash.Write(pk[:])
+		// mac1.key
+		// mac1.key是拼接后的对端公钥的摘要
 		hash.Sum(st.mac1.key[:0])
 	}()
 
 	func() {
+		// cookie--[32 bit key] == blake2s => [32 bit]
 		hash, _ := blake2s.New256(nil)
 		hash.Write([]byte(WGLabelCookie))
 		hash.Write(pk[:])
+		// mac2.encryptionKey
+		// mac2.encryptionKey是拼接后的对端公钥的摘要
 		hash.Sum(st.mac2.encryptionKey[:0])
 	}()
-
+	// 初始化cookie设置时间
 	st.mac2.cookieSet = time.Time{}
 }
 

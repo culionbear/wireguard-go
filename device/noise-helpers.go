@@ -62,6 +62,7 @@ func KDF3(t0, t1, t2 *[blake2s.Size]byte, key, input []byte) {
 	setZero(prk[:])
 }
 
+// isZero 判断byte切片是否为空
 func isZero(val []byte) bool {
 	acc := 1
 	for _, b := range val {
@@ -71,23 +72,28 @@ func isZero(val []byte) bool {
 }
 
 /* This function is not used as pervasively as it should because this is mostly impossible in Go at the moment */
+/* 这个函数并没有被广泛使用，因为目前在Go中这几乎是不可能的 */
+// setZero byte切片清零，类似于C里面的memset
 func setZero(arr []byte) {
 	for i := range arr {
 		arr[i] = 0
 	}
 }
 
+// clamp
 func (sk *NoisePrivateKey) clamp() {
 	sk[0] &= 248
 	sk[31] = (sk[31] & 127) | 64
 }
 
+// newPrivateKey 生成新的私钥
 func newPrivateKey() (sk NoisePrivateKey, err error) {
 	_, err = rand.Read(sk[:])
 	sk.clamp()
 	return
 }
 
+// publicKey 通过privateKey(私钥)生成publicKey(公钥)
 func (sk *NoisePrivateKey) publicKey() (pk NoisePublicKey) {
 	apk := (*[NoisePublicKeySize]byte)(&pk)
 	ask := (*[NoisePrivateKeySize]byte)(sk)
@@ -97,9 +103,13 @@ func (sk *NoisePrivateKey) publicKey() (pk NoisePublicKey) {
 
 var errInvalidPublicKey = errors.New("invalid public key")
 
+// sharedSecret 共享密钥
 func (sk *NoisePrivateKey) sharedSecret(pk NoisePublicKey) (ss [NoisePublicKeySize]byte, err error) {
+	// public key 公钥
 	apk := (*[NoisePublicKeySize]byte)(&pk)
+	// private key 私钥
 	ask := (*[NoisePrivateKeySize]byte)(sk)
+	// ss, err = curve25519.X25519(ask, apk)
 	curve25519.ScalarMult(&ss, ask, apk)
 	if isZero(ss[:]) {
 		return ss, errInvalidPublicKey

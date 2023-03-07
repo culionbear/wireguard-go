@@ -15,12 +15,26 @@ import (
 	"golang.zx2c4.com/wireguard/conn"
 )
 
+/*
+ * 以下是对加密算法的一些感悟
+ * C/S两端都生成属于自己的公私钥，然后双端呼唤公钥
+ * 双端通过对端的公钥与本端的私钥通过Curve25519算法各生成一个ShareKey(肯定是不同的)
+ * 在正常的使用方法中，数据发送前，通过ShareKey加密，随后再使用AES进行第二次加密
+ * 对端获取密文后，先使用AES解密，随后可以使用本端的ShareKey对请求进行二次解密
+ */
+
+// Peer 一个模块点，对应一个客户端
 type Peer struct {
-	isRunning         atomic.Bool
-	sync.RWMutex      // Mostly protects endpoint, but is generally taken whenever we modify peer
-	keypairs          Keypairs
-	handshake         Handshake
-	device            *Device
+	// 是否正在运行
+	isRunning atomic.Bool
+	// 主要是保护端点，但通常在修改peer时使用
+	sync.RWMutex // Mostly protects endpoint, but is generally taken whenever we modify peer
+
+	keypairs  Keypairs
+	handshake Handshake
+	// 上层设备类
+	device *Device
+	// 应该是网络数据流通通道
 	endpoint          conn.Endpoint
 	stopping          sync.WaitGroup // routines pending stop
 	txBytes           atomic.Uint64  // bytes send to peer (endpoint)
@@ -29,14 +43,23 @@ type Peer struct {
 
 	disableRoaming bool
 
+	// 各项时间表
 	timers struct {
-		retransmitHandshake     *Timer
-		sendKeepalive           *Timer
-		newHandshake            *Timer
-		zeroKeyMaterial         *Timer
-		persistentKeepalive     *Timer
-		handshakeAttempts       atomic.Uint32
-		needAnotherKeepalive    atomic.Bool
+		// 握手重发时间
+		retransmitHandshake *Timer
+		// 发送Keepalive包时间
+		sendKeepalive *Timer
+		// 新建握手时间
+		newHandshake *Timer
+		// TODO：还不知道这是啥
+		zeroKeyMaterial *Timer
+		// 持续Keepalive包时间
+		persistentKeepalive *Timer
+		// 握手尝试次数？
+		handshakeAttempts atomic.Uint32
+		// 需要另一个Keepalive？TODO：这边还不知道是啥意思
+		needAnotherKeepalive atomic.Bool
+		// 是否在最后一分钟内发送过握手？应该是缓存机制
 		sentLastMinuteHandshake atomic.Bool
 	}
 
@@ -55,48 +78,62 @@ type Peer struct {
 	persistentKeepaliveInterval atomic.Uint32
 }
 
+// NewPeer 新建一个Peer - NoisePublicKey为32位的bytes
 func (device *Device) NewPeer(pk NoisePublicKey) (*Peer, error) {
+	// 如果device被关掉了，则返回error
 	if device.isClosed() {
 		return nil, errors.New("device closed")
 	}
 
 	// lock resources
+	// TODO：后面再看
 	device.staticIdentity.RLock()
 	defer device.staticIdentity.RUnlock()
 
+	// peers：map[NoisePublicKey]*Peer，上锁
 	device.peers.Lock()
 	defer device.peers.Unlock()
 
 	// check if over limit
+	// 如果peers的长度会大于等于最大值，即65536，则返回error
 	if len(device.peers.keyMap) >= MaxPeers {
 		return nil, errors.New("too many peers")
 	}
 
 	// create peer
+	// 新建一个peer
 	peer := new(Peer)
+	// 不知道为啥这也要上锁
 	peer.Lock()
 	defer peer.Unlock()
-
+	// 通过public key初始化cookie类
 	peer.cookieGenerator.Init(pk)
+	// peer回存上层设备类
 	peer.device = device
+	// TODO：不是很懂，下次再看
 	peer.queue.outbound = newAutodrainingOutboundQueue(device)
 	peer.queue.inbound = newAutodrainingInboundQueue(device)
 	peer.queue.staged = make(chan *QueueOutboundElement, QueueStagedSize)
 
 	// map public key
+	// 判断之前是否存在
 	_, ok := device.peers.keyMap[pk]
 	if ok {
 		return nil, errors.New("adding existing peer")
 	}
 
 	// pre-compute DH
+	// 获取握手实例
 	handshake := &peer.handshake
 	handshake.mutex.Lock()
+	// 通过对端公钥与本端私钥生成ShareKey
 	handshake.precomputedStaticStatic, _ = device.staticIdentity.privateKey.sharedSecret(pk)
+	// 存储对端的长期公钥
 	handshake.remoteStatic = pk
 	handshake.mutex.Unlock()
 
 	// reset endpoint
+	// 重设置endpoint
 	peer.endpoint = nil
 
 	// init timers

@@ -24,7 +24,7 @@ type Timestamp [TimestampSize]byte
 // stamp 获取时间戳
 func stamp(t time.Time) Timestamp {
 	var tai64n Timestamp
-	// TODO：不知道为什么要这么搞，这个算法没搞懂
+	// TODO：TAI64N算法，后续补充
 	secs := base + uint64(t.Unix())
 	nano := uint32(t.Nanosecond()) &^ whitenerMask
 	binary.BigEndian.PutUint64(tai64n[:], secs)

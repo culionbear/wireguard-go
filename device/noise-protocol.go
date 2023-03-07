@@ -115,21 +115,33 @@ type MessageCookieReply struct {
 	Cookie   [blake2s.Size128 + poly1305.TagSize]byte
 }
 
+// Handshake 握手类？该类应该是为新建peer后进行网络握手的类
 type Handshake struct {
-	state                     handshakeState
-	mutex                     sync.RWMutex
-	hash                      [blake2s.Size]byte       // hash value
-	chainKey                  [blake2s.Size]byte       // chain key
-	presharedKey              NoisePresharedKey        // psk
-	localEphemeral            NoisePrivateKey          // ephemeral secret key
-	localIndex                uint32                   // used to clear hash-table
-	remoteIndex               uint32                   // index for sending
-	remoteStatic              NoisePublicKey           // long term key
-	remoteEphemeral           NoisePublicKey           // ephemeral public key
-	precomputedStaticStatic   [NoisePublicKeySize]byte // precomputed shared secret
-	lastTimestamp             tai64n.Timestamp
+	// 握手状态
+	state handshakeState
+	// 读写锁
+	mutex    sync.RWMutex
+	hash     [blake2s.Size]byte // hash value
+	chainKey [blake2s.Size]byte // chain key
+	// 预共享密钥
+	presharedKey NoisePresharedKey // psk
+	// 临时私钥
+	localEphemeral NoisePrivateKey // ephemeral secret key
+	// TODO：待会儿再看
+	localIndex  uint32 // used to clear hash-table
+	remoteIndex uint32 // index for sending
+	// 对端长期公钥
+	remoteStatic NoisePublicKey // long term key
+	// 对端短期公钥
+	remoteEphemeral NoisePublicKey // ephemeral public key
+	// 静态预共享密钥
+	precomputedStaticStatic [NoisePublicKeySize]byte // precomputed shared secret
+	// 自定义时间戳
+	lastTimestamp tai64n.Timestamp
+	// 最后一次发送数据时间
 	lastInitiationConsumption time.Time
-	lastSentHandshake         time.Time
+	// 最后一次握手时间
+	lastSentHandshake time.Time
 }
 
 var (
