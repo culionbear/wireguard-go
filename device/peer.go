@@ -36,11 +36,14 @@ type Peer struct {
 	// 上层设备类
 	device *Device
 	// 应该是网络数据流通通道
-	endpoint          conn.Endpoint
-	stopping          sync.WaitGroup // routines pending stop
-	txBytes           atomic.Uint64  // bytes send to peer (endpoint)
-	rxBytes           atomic.Uint64  // bytes received from peer
-	lastHandshakeNano atomic.Int64   // nano seconds since epoch
+	endpoint conn.Endpoint
+	stopping sync.WaitGroup // routines pending stop
+	// 像endpoint发送字节长度
+	txBytes atomic.Uint64 // bytes send to peer (endpoint)
+	// 回包字节长度
+	rxBytes atomic.Uint64 // bytes received from peer
+	// 最后一次握手时间戳
+	lastHandshakeNano atomic.Int64 // nano seconds since epoch
 
 	disableRoaming bool
 
@@ -149,7 +152,7 @@ func (device *Device) NewPeer(pk NoisePublicKey) (*Peer, error) {
 func (peer *Peer) SendBuffer(buffer []byte) error {
 	peer.device.net.RLock()
 	defer peer.device.net.RUnlock()
-
+	// 如果设备关闭了，则不执行后续逻辑
 	if peer.device.isClosed() {
 		return nil
 	}
@@ -160,7 +163,7 @@ func (peer *Peer) SendBuffer(buffer []byte) error {
 	if peer.endpoint == nil {
 		return errors.New("no known endpoint for peer")
 	}
-
+	// 发送数据包
 	err := peer.device.net.bind.Send(buffer, peer.endpoint)
 	if err == nil {
 		peer.txBytes.Add(uint64(len(buffer)))

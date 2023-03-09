@@ -219,12 +219,14 @@ func (st *CookieGenerator) ConsumeReply(msg *MessageCookieReply) bool {
 	return true
 }
 
+// AddMacs 在msg中加入mac(black2s摘要算法)
 func (st *CookieGenerator) AddMacs(msg []byte) {
 	size := len(msg)
-
+	// smac2 = 148 - 16
 	smac2 := size - blake2s.Size128
+	// smac1 = 148 - 32
 	smac1 := smac2 - blake2s.Size128
-
+	// 获取后两段mac
 	mac1 := msg[smac1:smac2]
 	mac2 := msg[smac2:]
 
@@ -234,19 +236,24 @@ func (st *CookieGenerator) AddMacs(msg []byte) {
 	// set mac1
 
 	func() {
+		// 新建一个摘要？
 		mac, _ := blake2s.New128(st.mac1.key[:])
+		// 将msg进行摘要算法
 		mac.Write(msg[:smac1])
+		// 保存在mac1序列中，后续用于判断
 		mac.Sum(mac1[:0])
 	}()
+	// 将最后一次的mac1复制到cookie类的mac2下面的lastMAC1变量中
 	copy(st.mac2.lastMAC1[:], mac1)
+	// 由于lastMAC1有了数据，设置为true
 	st.mac2.hasLastMAC1 = true
 
 	// set mac2
-
+	// 如果当前时间与上一次设置cookie值的时间大于120秒，则返回
 	if time.Since(st.mac2.cookieSet) > CookieRefreshTime {
 		return
 	}
-
+	// 否则将cookie设为key，msg+mac1的摘要放入mac2
 	func() {
 		mac, _ := blake2s.New128(st.mac2.cookie[:])
 		mac.Write(msg[:smac2])

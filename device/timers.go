@@ -192,8 +192,10 @@ func (peer *Peer) timersDataReceived() {
 }
 
 /* Should be called after any type of authenticated packet is sent -- keepalive, data, or handshake. */
+/* 应该在发送任何类型的经过身份验证的数据包(keepalive、data或握手)之后调用。 */
 func (peer *Peer) timersAnyAuthenticatedPacketSent() {
 	if peer.timersActive() {
+		// 取消发送keepalive包？TODO：没搞懂
 		peer.timers.sendKeepalive.Del()
 	}
 }
@@ -230,9 +232,13 @@ func (peer *Peer) timersSessionDerived() {
 }
 
 /* Should be called before a packet with authentication -- keepalive, data, or handshake -- is sent, or after one is received. */
+/* 应该在带有身份验证的数据包(keepalive、data或handshake)发送之前或在接收到数据包之后调用。 */
 func (peer *Peer) timersAnyAuthenticatedPacketTraversal() {
+	// 查看keepalive时间间隔
 	keepalive := peer.persistentKeepaliveInterval.Load()
+	// 如果间隔大于0并且peer活跃
 	if keepalive > 0 && peer.timersActive() {
+		// 重置keepalive时间间隔
 		peer.timers.persistentKeepalive.Mod(time.Duration(keepalive) * time.Second)
 	}
 }

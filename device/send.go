@@ -72,15 +72,22 @@ func (elem *QueueOutboundElement) clearPointers() {
 	elem.peer = nil
 }
 
-/* Queues a keepalive if no packets are queued for peer
- */
+// SendKeepalive 发送Keepalive包
+/* Queues a keepalive if no packets are queued for peer */
+/* 如果没有报文在对等体队列中，则进行keepalive队列 */
 func (peer *Peer) SendKeepalive() {
+	// TODO：后续了解一下这是啥通道
+	// 当该通道没有数据且peer为活跃
 	if len(peer.queue.staged) == 0 && peer.isRunning.Load() {
+		// 从池子里拿一个outbound
 		elem := peer.device.NewOutboundElement()
 		select {
+		// 如果staged没有阻塞，则就塞数据进去
+		// TODO：到时候看一下塞的啥数据
 		case peer.queue.staged <- elem:
 			peer.device.log.Verbosef("%v - Sending keepalive packet", peer)
 		default:
+			// 放回池子里
 			peer.device.PutMessageBuffer(elem.buffer)
 			peer.device.PutOutboundElement(elem)
 		}
@@ -124,18 +131,22 @@ func (peer *Peer) SendHandshakeInitiation(isRetry bool) error {
 	}
 	// 设置一个148字节的buffer
 	var buff [MessageInitiationSize]byte
+	// 新建一个writer
 	writer := bytes.NewBuffer(buff[:0])
+	// 二进制小端将msg写入buffer中
 	binary.Write(writer, binary.LittleEndian, msg)
 	packet := writer.Bytes()
+	// 设置摘要
 	peer.cookieGenerator.AddMacs(packet)
-
+	// 重置keepalive时间间隔
 	peer.timersAnyAuthenticatedPacketTraversal()
 	peer.timersAnyAuthenticatedPacketSent()
-
+	// 发送数据包
 	err = peer.SendBuffer(packet)
 	if err != nil {
 		peer.device.log.Errorf("%v - Failed to send handshake initiation: %v", peer, err)
 	}
+	// TODO：不晓得是干嘛的
 	peer.timersHandshakeInitiated()
 
 	return err
@@ -320,6 +331,7 @@ func (peer *Peer) StagePacket(elem *QueueOutboundElement) {
 	}
 }
 
+// SendStagedPackets
 func (peer *Peer) SendStagedPackets() {
 top:
 	// 如果通道没有elem或者device没开启，则返回
