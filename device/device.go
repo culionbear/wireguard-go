@@ -322,6 +322,7 @@ func NewDevice(tunDevice tun.Device, bind conn.Bind, logger *Logger) *Device {
 	cpus := runtime.NumCPU()
 	// TODO：这块为什么会要wait一下？
 	device.state.stopping.Wait()
+	// 将CPU数放入wait group内
 	device.queue.encryption.wg.Add(cpus) // One for each RoutineHandshake
 	for i := 0; i < cpus; i++ {
 		go device.RoutineEncryption(i + 1)
@@ -488,6 +489,7 @@ func (device *Device) BindUpdate() error {
 	var err error
 	var recvFns []conn.ReceiveFunc
 	netc := &device.net
+	// 从net.UDPConn中读取数据，这里是获取数据的方法列表
 	recvFns, netc.port, err = netc.bind.Open(netc.port)
 	if err != nil {
 		netc.port = 0

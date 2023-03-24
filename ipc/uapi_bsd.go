@@ -53,28 +53,29 @@ func (l *UAPIListener) Addr() net.Addr {
 	return l.listener.Addr()
 }
 
+// UAPIListen 监听UAPI，name为网卡，file为监听文件
 func UAPIListen(name string, file *os.File) (net.Listener, error) {
 	// wrap file in listener
-
+	// 通过file句柄监听网络流
 	listener, err := net.FileListener(file)
 	if err != nil {
 		return nil, err
 	}
-
+	// 新建uapi的listener
 	uapi := &UAPIListener{
 		listener: listener,
 		connNew:  make(chan net.Conn, 1),
 		connErr:  make(chan error, 1),
 	}
-
+	// 如果是unix协议，则设置 当listener关闭时，从文件系统中删除底层套接字文件
 	if unixListener, ok := listener.(*net.UnixListener); ok {
 		unixListener.SetUnlinkOnClose(true)
 	}
-
+	// 获取sock文件地址
 	socketPath := sockPath(name)
 
 	// watch for deletion of socket
-
+	// 这个应该是kill命令的句柄
 	uapi.kqueueFd, err = unix.Kqueue()
 	if err != nil {
 		return nil, err

@@ -245,7 +245,7 @@ func main() {
 
 	errs := make(chan error)
 	term := make(chan os.Signal, 1)
-
+	// 监听UAPI
 	uapi, err := ipc.UAPIListen(interfaceName, fileUAPI)
 	if err != nil {
 		logger.Errorf("Failed to listen on uapi socket: %v", err)

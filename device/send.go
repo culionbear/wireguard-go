@@ -301,10 +301,11 @@ func (device *Device) RoutineReadFromTUN() {
 		default:
 			device.log.Verbosef("Received packet with unknown IP version")
 		}
-
+		// 如果peer为空，则continue
 		if peer == nil {
 			continue
 		}
+		// 如果peer正在跑，则继续执行操作
 		if peer.isRunning.Load() {
 			peer.StagePacket(elem)
 			elem = nil
@@ -313,6 +314,7 @@ func (device *Device) RoutineReadFromTUN() {
 	}
 }
 
+// StagePacket 将元素放入staged内
 func (peer *Peer) StagePacket(elem *QueueOutboundElement) {
 	for {
 		select {

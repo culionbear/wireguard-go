@@ -28,6 +28,7 @@ const (
 // flag in wireguard-android.
 var socketDirectory = "/var/run/wireguard"
 
+// sockPath 获取sock文件
 func sockPath(iface string) string {
 	return fmt.Sprintf("%s/%s.sock", socketDirectory, iface)
 }

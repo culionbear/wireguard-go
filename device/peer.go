@@ -159,18 +159,20 @@ func (peer *Peer) SendBuffer(buffer []byte) error {
 
 	peer.RLock()
 	defer peer.RUnlock()
-
+	// 如果endpoint不存在，则返回error
 	if peer.endpoint == nil {
 		return errors.New("no known endpoint for peer")
 	}
 	// 发送数据包
 	err := peer.device.net.bind.Send(buffer, peer.endpoint)
 	if err == nil {
+		// 增加数据长度
 		peer.txBytes.Add(uint64(len(buffer)))
 	}
 	return err
 }
 
+// 重定义String，方便打印
 func (peer *Peer) String() string {
 	// The awful goo that follows is identical to:
 	//
@@ -179,6 +181,7 @@ func (peer *Peer) String() string {
 	//   return fmt.Sprintf("peer(%s)", abbreviatedKey)
 	//
 	// except that it is considerably more efficient.
+	// 获取对端长期公钥
 	src := peer.handshake.remoteStatic
 	b64 := func(input byte) byte {
 		return input + 'A' + byte(((25-int(input))>>8)&6) - byte(((51-int(input))>>8)&75) - byte(((61-int(input))>>8)&15) + byte(((62-int(input))>>8)&3)

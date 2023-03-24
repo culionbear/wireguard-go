@@ -66,6 +66,7 @@ func (peer *Peer) keepKeyFreshReceiving() {
  * Every time the bind is updated a new routine is started for
  * IPv4 and IPv6 (separately)
  */
+// 这里是获取UDP中的获取数据的方法
 func (device *Device) RoutineReceiveIncoming(recv conn.ReceiveFunc) {
 	recvName := recv.PrettyName()
 	defer func() {
